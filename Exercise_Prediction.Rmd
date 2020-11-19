@@ -108,17 +108,17 @@ plot(rf_method, main = "Model Accuracy")
 
 Now we need to test accuracy with the validation (testing_cv) data set to see how good the model is.
 
-## Accuracy and Sample Error
+## Accuracy and Out of Sample Error
 
 ```{r echo=TRUE, cache=TRUE}
 #Prediction testing_cv
 predictRf <- predict(rf_method, testing_cv)
 confusionMatrix(predictRf, testing_cv$classe)$overall['Accuracy']
-# Calculate in and out sample of errors
+# Calculate  out of sample error
 error <- 1 - as.numeric(confusionMatrix(predictRf, testing_cv$classe)$overall['Accuracy'])
 error
 ```
-Testing the model model gave us an accuracy of 99,37%, which is very satisfactory and a sample error of 0,63%.
+Testing the model model gave us an accuracy of 99,37%, which is very satisfactory, and an out of sample error of 0,63%.
 
 ## Predicting with the Testing Data 
 
