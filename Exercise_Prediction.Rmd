@@ -1,0 +1,136 @@
+---
+title: "Exercise Manner Prediction"
+author: "Ricardo Pellegrini"
+date: "17 11 2020"
+output: html_document
+---
+
+# Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. It was used 52 accelerometers variables as predictors.
+
+The variable "classe" has 5 factors, it can be "A", "B", ""C", "D" or "E".
+
+
+# The Model
+
+The description of the model, which and why the model was chosen, will be explained step by step.
+
+## Cleaning Data
+It was used 52 variables of accelerometers. Only the variables that had completed data were chosen. The others with NA or empty values were excluded. This was made for both training and testing files.
+
+```{r echo=TRUE, cache=TRUE}
+#dowloading training data
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="training.csv")
+training <- read.csv("training.csv")
+
+#dowloading testing data
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile = "testing.csv")
+testing <- read.csv("testing.csv")
+
+#Cleaning training data
+training[training == ""] <- NA
+training <- training[,colSums(is.na(training))==0]
+
+Clean_training <- grepl("^X|user_name|timestamp|window", names(training))
+training <- training[,!Clean_training]
+
+training$classe <- as.factor(training$classe)
+training[, 1:52] <- sapply(training[, 1:52], as.numeric)
+
+#Cleaning testing data
+testing[testing == ""] <- NA
+testing <- testing[,colSums(is.na(testing))==0]
+
+Clean_testing <- grepl("^X|user_name|timestamp|window", names(testing))
+testing <- testing[,!Clean_testing]
+
+testing[, 1:52] <- sapply(testing[, 1:52], as.numeric)
+```
+
+## Cross Validation
+
+We will use cross validation because it helps us avoiding overfitting. By dividing the dataset into a train and validation set, we can concretely check that our model performs well on data seen during training and not. 
+
+Cross validation procedures:
+  1 - Divide the dataset into 2 parts: training(70%) and testing(30%);
+  2 - Train the model on the training set;
+  3 - Evaluate the model on the testing set.
+  
+The Cross Validation method is the K-Fold. With K-Fold, we’re going to randomly split our dataset into K equally sized parts. We will then train our model K times. For each training run, we select a single partition from our K parts to be the test set and use the rest for training. The K number that we will utilize is 5. The process is completed until accuracy is determine for each instance in the dataset, and an overall accuracy estimate is provided.
+
+### Why K-Fold? 
+
+Because K-Fold Cross Validation is that its much less prone to selection bias since training and testing is performed on several different parts. In particular, if we increase the value of K, we can be even more sure of the robustness of our model since we’ve trained and tested on so many different sub-datasets. 
+
+```{r echo=TRUE, cache=TRUE}
+library(caret)
+set.seed(1681)
+#Spliting data to training and validation
+inTrain <- createDataPartition(training$classe, p=0.7,list=FALSE)
+training_cv <- training[inTrain,]
+testing_cv <- training[-inTrain,]
+#Cross Validation
+tr_control <- trainControl(method="cv", 5)
+```
+
+## Train Method
+
+The method chosen was the random forest wih ntree equals to 250. Ntree is the number of branches will grow after each time split.
+
+Random forest is the most simple and widely used algorithm. It is an ensemble of randomized decision trees. Each decision tree gives a vote for the prediction of target variable. It choses the prediction that gets the most vote.
+
+In random forest we use multiple random decision trees for a better accuracy and achieve low prediction error. It reduces the variance of the individual decision trees by randomly selecting trees and then either average them or picking the class that gets the most vote.
+
+Advantages to use random forest in our data:
+  1 - High predictive accuracy;
+  2 - Efficient on large data sets;
+  3 - Ability to handle multiple input features without need for feature deletion.
+
+```{r echo=TRUE, cache=TRUE}
+set.seed(1682)
+# Training with Random Forest method
+rf_method <- train(classe ~ ., data=training_cv, method="rf", trControl=tr_control, ntree=250)
+# Model Visualization
+ggplot(varImp(rf_method))
+```
+
+The graphic shows the variables importance scale. Higher values means more importance.
+We see that "roll_belt" is the most important predictor followed by "pitch_forearm".
+
+```{r}
+# Model Accuracy
+plot(rf_method, main = "Model Accuracy")
+```
+
+
+Now we need to test accuracy with the validation (testing_cv) data set to see how good the model is.
+
+## Accuracy and Sample Error
+
+```{r echo=TRUE, cache=TRUE}
+#Prediction testing_cv
+predictRf <- predict(rf_method, testing_cv)
+confusionMatrix(predictRf, testing_cv$classe)$overall['Accuracy']
+# Calculate in and out sample of errors
+error <- 1 - as.numeric(confusionMatrix(predictRf, testing_cv$classe)$overall['Accuracy'])
+error
+```
+Testing the model model gave us an accuracy of 99,37%, which is very satisfactory and a sample error of 0,63%.
+
+## Predicting with the Testing Data 
+
+The final part is to use the model to predict 20 "classe" variables with the testing dataset. 
+
+```{r}
+#Prediction testing data
+predict_testing <- predict(rf_method, testing[1:52])
+predict_testing
+```
+
+Above we can see the results for each row of the testing data, showing which manner of exercise it was made according to the values showed in that respective row.
+
+
+
